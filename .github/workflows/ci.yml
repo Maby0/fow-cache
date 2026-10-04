@@ -66,6 +66,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: npm wouldn't rewrite package.json at publish time (e.g. drop the bin)
+        run: npm pkg fix && git diff --exit-code package.json
       - run: npm ci
       - run: npm test
       - name: Package bundles the data

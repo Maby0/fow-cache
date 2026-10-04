@@ -2,21 +2,47 @@
   "name": "fow-cache",
   "version": "0.1.0",
   "description": "How often does your semantic cache serve the wrong answer? A benchmark, a CI check and a guard for multi-turn chats, built on Jev.",
-  "keywords": ["llm", "semantic-cache", "benchmark", "evaluation", "caching", "jev", "langchain"],
+  "keywords": [
+    "llm",
+    "semantic-cache",
+    "benchmark",
+    "evaluation",
+    "caching",
+    "jev",
+    "langchain"
+  ],
   "author": "Mabon ap Gwyn",
   "license": "MIT",
   "homepage": "https://github.com/Maby0/fow-cache#readme",
-  "repository": { "type": "git", "url": "git+https://github.com/Maby0/fow-cache.git", "directory": "js" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Maby0/fow-cache.git",
+    "directory": "js"
+  },
   "bugs": "https://github.com/Maby0/fow-cache/issues",
   "type": "module",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "fow-cache": "./dist/cli.js" },
-  "files": ["dist", "data", "README.md", "LICENSE", "LICENSE-DATA"],
-  "engines": { "node": ">=20" },
+  "bin": {
+    "fow-cache": "bin/fow-cache.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "data",
+    "README.md",
+    "LICENSE",
+    "LICENSE-DATA"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "sync": "node scripts/sync.mjs",
     "build": "npm run sync && tsc -p tsconfig.json",
@@ -28,8 +54,12 @@
     "@langchain/core": ">=0.3"
   },
   "peerDependenciesMeta": {
-    "@anthropic-ai/sdk": { "optional": true },
-    "@langchain/core": { "optional": true }
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "@langchain/core": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

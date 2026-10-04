@@ -38,6 +38,8 @@ pip install "fow-cache[anthropic,redis]"       # the guard with RedisVL
 # other extras: gptcache, langchain
 ```
 
+TypeScript: `npm install fow-cache` (same data, guard and results; see [`js/`](js/)).
+
 ## Test your cache
 
 Give `evaluate` the function your cache uses to decide a hit. Return `True`/`False`,

@@ -48,3 +48,25 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: GPTCache and LangChain backends
         run: uv run --python 3.12 --no-default-groups --group dev --extra gptcache --extra langchain pytest -q tests/test_backends.py -rs
+
+  js:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ["20", "22", "24"]
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: TypeScript constants match the Python package
+        working-directory: .
+        run: uv run --no-default-groups python scripts/gen_js_shared.py --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+      - name: Package bundles the data
+        run: npm pack --dry-run 2>&1 | grep -q "data/conv-long/"

@@ -24,3 +24,22 @@ jobs:
       - name: Wheel bundles the data
         run: unzip -l dist/*.whl | grep -q "fow_cache/data/conv-long/"
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # npm trusted publishing: no stored token, provenance attached
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Tag matches the package version
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm ci
+      - run: npm test
+      - run: npm publish --access public

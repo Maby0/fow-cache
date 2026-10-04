@@ -44,3 +44,6 @@
 ## [2026-10-04] build | GPTCache and LangChain backends; Jev positioning
 - GPTCacheBackend, LangChainBackend, gptcache_check, langchain_check; tests against the real libraries; CI backends job
 - Decision: Jev stays the checker, README gains a Why Jev section (ideas.md)
+
+## [2026-10-04] build | TypeScript port for npm
+- js/: evaluate, guard, GuardedCache (InMemory, LangChain.js), costs, CLI; constants generated from the Python package (scripts/gen_js_shared.py, CI-checked); output identical to Python on a parity run; 17 tests; live API check 4/4

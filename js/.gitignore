@@ -1,0 +1,7 @@
+node_modules/
+dist/
+build-test/
+data/
+LICENSE
+LICENSE-DATA
+*.tgz

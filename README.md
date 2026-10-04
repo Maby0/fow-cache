@@ -32,9 +32,9 @@ and a guard for multi-turn chats.
 ## Install
 
 ```bash
-pip install "fow-cache @ git+https://github.com/Maby0/fow-cache"     # core: no dependencies
-pip install "fow-cache[embeddings] @ git+https://github.com/Maby0/fow-cache"   # + sentence-transformers
-pip install "fow-cache[anthropic,redis] @ git+https://github.com/Maby0/fow-cache"  # the guard with RedisVL
+pip install fow-cache                          # core: no dependencies
+pip install "fow-cache[embeddings]"            # + sentence-transformers, for --embedder
+pip install "fow-cache[anthropic,redis]"       # the guard with RedisVL
 # other extras: gptcache, langchain
 ```
 

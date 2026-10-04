@@ -63,6 +63,9 @@ jobs:
       - name: TypeScript constants match the Python package
         working-directory: .
         run: uv run --no-default-groups python scripts/gen_js_shared.py --check
+      - name: Python and npm package versions match
+        working-directory: .
+        run: test "$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)" = "$(node -p "require('./js/package.json').version")"
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}

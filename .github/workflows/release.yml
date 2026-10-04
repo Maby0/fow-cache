@@ -27,8 +27,9 @@ jobs:
 
   npm:
     runs-on: ubuntu-latest
+    environment: npm   # must match the trusted publisher's environment on npmjs.com
     permissions:
-      id-token: write  # npm trusted publishing: no stored token, provenance attached
+      id-token: write  # npm trusted publishing (OIDC): no stored token
     defaults:
       run:
         working-directory: js
@@ -38,8 +39,14 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+      - name: npm with staged publishing (11.15+)
+        run: npm install -g npm@11.21.0
       - name: Tag matches the package version
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
       - run: npm ci
       - run: npm test
-      - run: npm publish --access public
+      # The trusted publisher allows staging only: the release waits for a maintainer to
+      # approve it with 2FA (npmjs.com, or `npm stage approve <stage-id>`) before going live.
+      - run: npm stage publish . --access public --provenance
+      - name: Approval reminder
+        run: echo "::notice::fow-cache $GITHUB_REF_NAME is staged on npm. Approve it on npmjs.com (package settings) or with npm stage approve to make it live."

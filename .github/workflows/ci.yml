@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Tests (core install, no extras)
+        run: uv run --python ${{ matrix.python }} --no-default-groups --group dev pytest -q
+      - name: Wheel bundles the data
+        run: |
+          uv build --wheel
+          unzip -l dist/*.whl | grep -q "fow_cache/data/pairs.jsonl"
+          unzip -l dist/*.whl | grep -q "fow_cache/data/conv-long/"
+
+  redis:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis/redis-stack-server:latest
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+      FOW_REQUIRE_REDIS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: RedisVL integration tests
+        run: uv run --python 3.12 --no-default-groups --group dev --extra redis pytest -q tests/test_redisvl.py -rs
+
+  backends:
+    runs-on: ubuntu-latest
+    env:
+      FOW_REQUIRE_BACKENDS: "1"
+      OMP_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: GPTCache and LangChain backends
+        run: uv run --python 3.12 --no-default-groups --group dev --extra gptcache --extra langchain pytest -q tests/test_backends.py -rs

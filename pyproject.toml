@@ -1,0 +1,52 @@
+[project]
+name = "fow-cache"
+version = "0.1.0"
+description = "How often does your semantic cache serve the wrong answer? A benchmark, a CI check and a guard for multi-turn chats."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "LICENSE-DATA"]
+authors = [{ name = "Mabon ap Gwyn" }]
+keywords = ["llm", "semantic-cache", "benchmark", "evaluation", "caching"]
+dependencies = []
+
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=3.0", "numpy>=1.26"]
+anthropic = ["anthropic>=1.0"]
+redis = ["redisvl>=0.5"]
+gptcache = ["gptcache>=0.1.44"]
+langchain = ["langchain-core>=0.3"]
+# Everything the benchmark scripts in bench/ need to reproduce results/.
+bench = [
+    "fow-cache[embeddings,anthropic]",
+    "faiss-cpu>=1.8",
+    "gptcache>=0.1.44",
+    "matplotlib>=3.8",
+    "onnxruntime>=1.17",
+    "sqlalchemy>=2.0",
+    "transformers>=4.40",
+]
+
+[project.scripts]
+fow-cache = "fow_cache.cli:main"
+
+[project.urls]
+Repository = "https://github.com/Maby0/fow-cache"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fow_cache"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"data/pairs.jsonl" = "fow_cache/data/pairs.jsonl"
+"data/conv-parts" = "fow_cache/data/conv-parts"
+"data/conv-long" = "fow_cache/data/conv-long"
+
+[tool.hatch.build.targets.sdist]
+include = ["fow_cache", "data", "tests", "README.md", "LICENSE", "LICENSE-DATA"]

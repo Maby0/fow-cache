@@ -1,6 +1,6 @@
 [project]
 name = "fow-cache"
-version = "0.2.0"
+version = "0.2.1"
 description = "How often does your semantic cache serve the wrong answer? A benchmark, a CI check and a guard for multi-turn chats."
 readme = "README.md"
 requires-python = ">=3.10"

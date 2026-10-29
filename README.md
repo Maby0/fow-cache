@@ -148,7 +148,7 @@ Keep your semantic cache; let it find candidates and let the guard decide. With 
 
 ```python
 from redisvl.extensions.cache.llm import SemanticCache
-from fow_cache import Guard, GuardedCache, anthropic_llm
+from fow_cache import Guard, GuardedCache, anthropic_llm, merge_fold
 from fow_cache.cache import RedisVLBackend
 from fow_cache.jev import JevClient
 
@@ -162,9 +162,15 @@ def handle(conversation_id, user_message):
     reply = hit.answer if hit else call_your_model(chat.messages, user_message)
     if not hit:
         cache.store(entry, reply)
-    chat.add(user_message, reply)            # every 4th exchange this updates the facts:
-    save_state(conversation_id, chat.to_dict())   # run it after responding if you can
+    chat.record(user_message, reply)         # no model call
+    save_state(conversation_id, chat.to_dict())
+    if chat.fold_due:                        # every 4th exchange: update the facts later
+        run_in_background(fold_facts, conversation_id)   # your task queue, thread or worker
     return reply
+
+def fold_facts(conversation_id):
+    update = guard.conversation(load_state(conversation_id)).fold()   # one Haiku call
+    save_state(conversation_id, merge_fold(load_state(conversation_id), update))
 ```
 
 - **How it decides.** Every 4 exchanges, Haiku 4.5 folds the chat into a short record of
@@ -172,11 +178,17 @@ def handle(conversation_id, user_message):
   standalone requests ("book it" becomes "book the Tuesday 6:30pm spin class at IronWorks
   Bristol") and two [Jev](https://typesafe.ai) checks run: the whole conversations, and
   the rewrites. The answer is served only if both pass.
+- **Facts off the request path.** `record()` never calls a model; `fold()` does the Haiku
+  call. `merge_fold` keeps messages recorded while a fold ran, and a slow fold never
+  overwrites a newer one. If the next message arrives before the fold finishes, the guard
+  still sees every unfolded message. `chat.add()` does both in one call if you'd rather
+  not run a background task. On AWS Lambda, send the fold to a queue: work after the
+  response isn't guaranteed to run.
 - **Fails safe.** `check()` never raises. Errors, or a check that runs past `timeout`
   (default 3 s; median is ~1.2 s), come back as a miss, so your app answers normally.
 - **Stateless servers.** `chat.to_dict()` / `guard.conversation(state)` persist the running
   state; the snapshot stored with each cached answer travels in the cache entry.
-- **Async.** `await cache.alookup(entry)`, `await cache.astore(...)`, `await chat.aadd(...)`,
+- **Async.** `await cache.alookup(entry)`, `await cache.astore(...)`, `await chat.afold()`,
   `await guard.acheck(...)`.
 - **Looser backend threshold.** The backend only finds candidates, so give it more room
   than you would unguarded (`distance_threshold=0.3` above vs RedisVL's 0.1 default).

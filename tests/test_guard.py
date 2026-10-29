@@ -1,6 +1,6 @@
 import json
 
-from fow_cache import Guard
+from fow_cache import Guard, merge_fold
 from fow_cache.prompts import FACTS_BATCH_PROMPT
 
 
@@ -43,6 +43,30 @@ def test_facts_fold_every_batch():
     c = chat(g, "netflix", n=5)
     assert c.folded == 4 and llm.calls.count(FACTS_BATCH_PROMPT) == 1
     assert c.facts == {"goal": "I want to cancel my netflix"}
+
+
+def test_record_makes_no_model_call_and_fold_catches_up():
+    llm = FakeLLM()
+    c = Guard(llm=llm, jev=FakeJev(), batch=2).conversation()
+    c.record("cancel my netflix", "which plan?")
+    c.record("premium", "ok")
+    assert llm.calls == [] and c.fold_due
+    assert c.fold() == {"facts": {"goal": "cancel my netflix"}, "folded": 2}
+    assert not c.fold_due and llm.calls == [FACTS_BATCH_PROMPT]
+
+
+def test_merge_fold_keeps_newer_messages_and_newer_facts():
+    g = Guard(llm=FakeLLM(), jev=FakeJev(), batch=2)
+    c = g.conversation()
+    c.record("cancel my netflix", "which plan?")
+    c.record("premium", "ok")
+    background = g.conversation(c.to_dict())  # the worker's copy
+    c.record("thanks", "welcome")  # the next request saves first
+    latest = c.to_dict()
+    merged = merge_fold(latest, background.fold())
+    assert merged["messages"] == latest["messages"] and merged["folded"] == 2
+    assert merged["facts"] == {"goal": "cancel my netflix"}
+    assert merge_fold(merged, {"facts": {"goal": "stale"}, "folded": 0}) is merged
 
 
 def test_same_final_message_different_context_is_not_served():

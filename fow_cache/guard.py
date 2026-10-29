@@ -14,8 +14,10 @@ miss (serve=False) and your app generates a fresh answer as it would without a c
 
     guard = Guard(llm=anthropic_llm(), jev=JevClient())
     chat = guard.conversation()               # or guard.conversation(saved_state)
-    chat.add(user_msg, reply)                 # after each reply (aadd() in async code)
+    chat.record(user_msg, reply)              # after each reply: no model call
     saved_state = chat.to_dict()              # persist per conversation id
+    if chat.fold_due: chat.fold()             # every BATCH exchanges, off the request path
+                                              # (merge_fold() when saving from a background task)
     entry = chat.ask(next_user_msg)           # snapshot to look up / store with an answer
     decision = guard.check(cached_entry, entry)   # acheck() in async code
 """
@@ -100,31 +102,59 @@ class Conversation:
     def to_dict(self):
         return {"messages": self.messages, "facts": self.facts, "folded": self.folded}
 
-    def add(self, user, assistant):
-        """Record one exchange. Every BATCH exchanges this makes one LLM call to update the
-        facts, so call it after the reply has gone out. If the call fails, the exchanges
-        stay unfolded and are retried on the next add()."""
+    def record(self, user, assistant):
+        """Record one exchange. No model call, so it's safe on the request path."""
         self.messages += [{"role": "user", "content": user}, {"role": "assistant", "content": assistant}]
-        while len(self.messages) // 2 - self.folded >= self.guard.batch:
+
+    @property
+    def fold_due(self):
+        """True when BATCH or more exchanges are waiting to be folded into the facts."""
+        return len(self.messages) // 2 - self.folded >= self.guard.batch
+
+    def fold(self):
+        """Fold waiting exchanges into the facts: one LLM call per BATCH exchanges. Run it off
+        the request path, e.g. in a background task once the reply has gone out. If a call
+        fails, the exchanges stay unfolded and are retried on the next fold(). Never raises.
+        Returns {"facts", "folded"}, for merge_fold() when saving from a background task."""
+        while self.fold_due:
             block = self.messages[2 * self.folded:2 * (self.folded + self.guard.batch)]
             try:
                 text = self.guard.llm(FACTS_BATCH_PROMPT, f"Current record:\n{json.dumps(self.facts)}\n\n"
                                       f"Latest exchanges:\n{transcript(block)}")
             except Exception:
-                log.warning("fow-cache: facts update failed; will retry on the next exchange", exc_info=True)
-                return
+                log.warning("fow-cache: facts update failed; will retry on the next fold", exc_info=True)
+                break
             record = _parse_record(text)
             if record is None:
                 log.warning("fow-cache: facts update returned no JSON object; keeping the previous record")
             else:
                 self.facts = record
             self.folded += self.guard.batch
+        return {"facts": self.facts, "folded": self.folded}
+
+    async def afold(self):
+        return await asyncio.to_thread(self.fold)
+
+    def add(self, user, assistant):
+        """record() then fold(), in one call. Every BATCH exchanges this waits on an LLM call,
+        so call it after the reply has gone out, or use record() and fold() separately."""
+        self.record(user, assistant)
+        self.fold()
 
     async def aadd(self, user, assistant):
         await asyncio.to_thread(self.add, user, assistant)
 
     def ask(self, user):
         return Entry(self.messages + [{"role": "user", "content": user}], dict(self.facts), self.folded)
+
+
+def merge_fold(state, update):
+    """Apply a background fold() result to the latest saved state. Messages always come from
+    `state`, so exchanges recorded while the fold ran are kept; facts come from whichever has
+    folded further, so a slow fold never overwrites a newer one."""
+    if update["folded"] <= state.get("folded", 0):
+        return state
+    return {**state, "facts": update["facts"], "folded": update["folded"]}
 
 
 @dataclass

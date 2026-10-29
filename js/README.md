@@ -53,7 +53,7 @@ Exits 1 when more than `--max-wrong` of the traps get a wrong answer.
 ## The guard (multi-turn chats)
 
 ```ts
-import { Guard, GuardedCache, InMemoryBackend, anthropicLlm, JevClient } from "fow-cache";
+import { Guard, GuardedCache, InMemoryBackend, anthropicLlm, JevClient, mergeFold } from "fow-cache";
 
 const guard = new Guard({ llm: anthropicLlm(), jev: new JevClient() });
 const cache = new GuardedCache(new InMemoryBackend(), guard);   // or new LangChainBackend(yourCache)
@@ -64,9 +64,15 @@ async function handle(conversationId: string, userMessage: string) {
   const hit = await cache.lookup(entry);
   const reply = hit ? hit.answer : await callYourModel(chat.messages, userMessage);
   if (!hit) await cache.store(entry, reply);
-  await chat.add(userMessage, reply);        // every 4th exchange this updates the facts
+  chat.record(userMessage, reply);           // no model call
   await saveState(conversationId, chat.toJSON());
+  if (chat.foldDue) queueJob(foldFacts, conversationId);   // every 4th exchange, off the request path
   return reply;
+}
+
+async function foldFacts(conversationId: string) {
+  const update = await guard.conversation(await loadState(conversationId)).fold();   // one Haiku call
+  await saveState(conversationId, mergeFold(await loadState(conversationId), update));
 }
 ```
 
@@ -75,6 +81,9 @@ async function handle(conversationId: string, userMessage: string) {
   [Jev](https://typesafe.ai) checks run (whole conversations, and the rewrites); the answer
   is served only if both pass. About 90% of genuine hits served, 3-6% of traps wrong,
   held-out on the benchmark.
+- `record()` never calls a model; `fold()` does. `mergeFold` keeps messages recorded while
+  a fold ran and never lets a slow fold overwrite a newer one. `chat.add()` does both in
+  one call. On serverless, send the fold to a queue rather than running it after responding.
 - `check()` never throws: errors and timeouts (default 3 s; median ~1.2 s) are misses.
 - Entries and state serialise to the same JSON as the Python package, so a cache written
   from Python can be read from TypeScript and the other way round.

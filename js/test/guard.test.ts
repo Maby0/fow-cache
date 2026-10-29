@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Guard, GuardedCache, InMemoryBackend, LangChainBackend, unpack } from "../src/index.js";
+import { Guard, GuardedCache, InMemoryBackend, LangChainBackend, mergeFold, unpack } from "../src/index.js";
 import { FACTS_BATCH_PROMPT } from "../src/shared.js";
 import { chat, FakeJev, FakeLlm } from "./fakes.js";
 
@@ -50,6 +50,28 @@ test("a failed facts update is retried", async () => {
   assert.equal(c.folded, 0);
   await c.add("thanks", "welcome");
   assert.equal(c.folded, 2); assert.deepEqual(c.facts, { goal: "cancel netflix" });
+});
+
+test("record makes no model call; fold catches up", async () => {
+  const f = new FakeLlm();
+  const c = new Guard({ llm: f.llm, jev: new FakeJev(), batch: 2, ...quiet }).conversation();
+  c.record("cancel my netflix", "which plan?"); c.record("premium", "ok");
+  assert.equal(f.calls.length, 0); assert.equal(c.foldDue, true);
+  assert.deepEqual(await c.fold(), { facts: { goal: "cancel my netflix" }, folded: 2 });
+  assert.equal(c.foldDue, false); assert.equal(f.calls.length, 1);
+});
+
+test("mergeFold keeps newer messages and newer facts", async () => {
+  const g = new Guard({ llm: new FakeLlm().llm, jev: new FakeJev(), batch: 2, ...quiet });
+  const c = g.conversation();
+  c.record("cancel my netflix", "which plan?"); c.record("premium", "ok");
+  const background = g.conversation(structuredClone(c.toJSON()));
+  c.record("thanks", "welcome");
+  const latest = structuredClone(c.toJSON());
+  const merged = mergeFold(latest, await background.fold());
+  assert.deepEqual(merged.messages, latest.messages); assert.equal(merged.folded, 2);
+  assert.deepEqual(merged.facts, { goal: "cancel my netflix" });
+  assert.equal(mergeFold(merged, { facts: { goal: "stale" }, folded: 0 }), merged);
 });
 
 test("state round-trips through JSON", async () => {

@@ -1,8 +1,8 @@
 export { evaluate, Report, type Result, type EvaluateOptions, type Ambiguous } from "./evaluate.js";
 export { loadQuestions, loadConversations, type Message, type QuestionPair, type ConversationPair } from "./data.js";
 export {
-  Guard, Conversation, anthropicLlm, transcript,
-  type Entry, type Decision, type Llm, type GuardOptions, type ConversationState,
+  Guard, Conversation, anthropicLlm, transcript, mergeFold,
+  type Entry, type Decision, type Llm, type GuardOptions, type ConversationState, type FoldResult,
 } from "./guard.js";
 export { JevClient, type Jev, type JevOptions } from "./jev.js";
 export { GuardedCache, InMemoryBackend, LangChainBackend, pack, unpack, type Backend, type Hit } from "./cache.js";

@@ -63,6 +63,19 @@ export interface ConversationState {
   folded: number;
 }
 
+export interface FoldResult {
+  facts: Record<string, unknown>;
+  folded: number;
+}
+
+/** Apply a background fold() result to the latest saved state. Messages always come from
+ * `state`, so exchanges recorded while the fold ran are kept; facts come from whichever has
+ * folded further, so a slow fold never overwrites a newer one. */
+export function mergeFold(state: ConversationState, update: FoldResult): ConversationState {
+  if (update.folded <= (state.folded ?? 0)) return state;
+  return { ...state, facts: update.facts, folded: update.folded };
+}
+
 export class Conversation {
   messages: Message[];
   facts: Record<string, unknown>;
@@ -78,27 +91,45 @@ export class Conversation {
     return { messages: this.messages, facts: this.facts, folded: this.folded };
   }
 
-  /** Record one exchange. Every BATCH exchanges this makes one LLM call to update the facts,
-   * so call it after the reply has gone out. If the call fails, the exchanges stay unfolded
-   * and are retried on the next add(). Never throws. */
-  async add(user: string, assistant: string): Promise<void> {
+  /** Record one exchange. No model call, so it's safe on the request path. */
+  record(user: string, assistant: string): void {
     this.messages.push({ role: "user", content: user }, { role: "assistant", content: assistant });
+  }
+
+  /** True when BATCH or more exchanges are waiting to be folded into the facts. */
+  get foldDue(): boolean {
+    return this.messages.length / 2 - this.folded >= this.guard.batch;
+  }
+
+  /** Fold waiting exchanges into the facts: one LLM call per BATCH exchanges. Run it off the
+   * request path, e.g. after the reply has gone out. If a call fails, the exchanges stay
+   * unfolded and are retried on the next fold(). Never throws. Resolves to the fold result,
+   * for mergeFold() when saving from a background job. */
+  async fold(): Promise<FoldResult> {
     const batch = this.guard.batch;
-    while (this.messages.length / 2 - this.folded >= batch) {
+    while (this.foldDue) {
       const block = this.messages.slice(2 * this.folded, 2 * (this.folded + batch));
       let text: string;
       try {
         text = await this.guard.llm(FACTS_BATCH_PROMPT,
           `Current record:\n${JSON.stringify(this.facts)}\n\nLatest exchanges:\n${transcript(block)}`);
       } catch (e) {
-        this.guard.log("facts update failed; will retry on the next exchange", e);
-        return;
+        this.guard.log("facts update failed; will retry on the next fold", e);
+        break;
       }
       const record = parseRecord(text);
       if (record) this.facts = record;
       else this.guard.log("facts update returned no JSON object; keeping the previous record");
       this.folded += batch;
     }
+    return { facts: this.facts, folded: this.folded };
+  }
+
+  /** record() then fold(), in one call. Every BATCH exchanges this waits on an LLM call, so
+   * call it after the reply has gone out, or use record() and fold() separately. */
+  async add(user: string, assistant: string): Promise<void> {
+    this.record(user, assistant);
+    await this.fold();
   }
 
   ask(user: string): Entry {

@@ -47,3 +47,7 @@
 
 ## [2026-10-04] build | TypeScript port for npm
 - js/: evaluate, guard, GuardedCache (InMemory, LangChain.js), costs, CLI; constants generated from the Python package (scripts/gen_js_shared.py, CI-checked); output identical to Python on a parity run; 17 tests; live API check 4/4
+
+## [2026-10-29] build | Interactive demo on GitHub Pages
+- demo/index.html: two MyGym support chats + guard trace, click-to-advance narration, stage view (#demo-2-stage); scripted replay, illustrative Jev scores, library thresholds and cost-model prices
+- Live at maby0.github.io/fow-cache/demo/ (Pages from main, root); README links it with demo/demo.gif (screen recording, 1.5x, 2m18s, 5 MB); MP4 copy in ~/Movies/fow-cache-demo.mp4

@@ -5,6 +5,12 @@
 *fow = fly on the wall: it watches the whole conversation and speaks up when a cached
 answer doesn't fit.*
 
+[![Two gym support chats: fow-cache serves cached answers where they fit and blocks the one that would refund the wrong customer](demo/demo.gif)](https://maby0.github.io/fow-cache/demo/#demo-2-stage)
+
+**[Try the interactive demo](https://maby0.github.io/fow-cache/demo/)**: two support chats
+side by side, stepping through each lookup and both of Jev's checks. Scripted replay with
+illustrative scores; the flow, thresholds and prices are the library's.
+
 A semantic cache reuses an LLM answer when a new question "means the same" as one it has
 seen, usually judged by embedding similarity above a threshold. That works for
 rewordings. It fails on questions that differ by one word:

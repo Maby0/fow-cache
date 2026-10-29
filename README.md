@@ -234,6 +234,12 @@ uv run python bench/conv_report.py && uv run python bench/conv_heldout.py
 `bench/conversations.py --haiku-via claude-cli` runs the Haiku calls through a logged-in
 Claude Code CLI instead of an API key (not temperature 0, so numbers vary slightly).
 
+## Contributing
+
+Install the pre-commit hook once per clone: `git config core.hooksPath .githooks`. It
+blocks staged files over 5,000 tokens (bytes / 4) and says how to split them; lockfiles,
+generated code, benchmark data and binaries are skipped (`scripts/check_file_tokens.py`).
+
 ## Licence
 
 Code: MIT. Data (`data/`): CC BY 4.0.

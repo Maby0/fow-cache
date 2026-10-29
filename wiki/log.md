@@ -59,3 +59,6 @@
 
 ## [2026-10-29] release | v0.2.0
 - record()/fold()/merge_fold. PyPI published; npm job failed (E404: trusted-publisher OIDC exchange rejected), pending a settings check.
+
+## [2026-10-29] release | v0.2.1
+- RedisVL per-context entries. PyPI via the release workflow; npm published by hand (the workflow's npm job failed again with E404, i.e. trusted publishing not accepted). 0.2.0 was never published to npm.

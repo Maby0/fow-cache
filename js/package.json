@@ -1,6 +1,6 @@
 {
   "name": "fow-cache",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "How often does your semantic cache serve the wrong answer? A benchmark, a CI check and a guard for multi-turn chats, built on Jev.",
   "keywords": [
     "llm",

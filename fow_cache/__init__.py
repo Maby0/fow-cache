@@ -5,7 +5,7 @@ from .evaluate import Report, evaluate
 from .cache import GuardedCache, Hit, InMemoryBackend
 from .guard import Conversation, Decision, Entry, Guard, anthropic_llm, merge_fold
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["evaluate", "Report", "load_questions", "load_conversations",
            "Guard", "Conversation", "Entry", "Decision", "anthropic_llm", "merge_fold",
            "GuardedCache", "Hit", "InMemoryBackend"]

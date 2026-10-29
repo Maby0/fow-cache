@@ -582,7 +582,7 @@ async function generate(t, reply, why) {
 async function runTurn(t, n) {
   const who = userLabel(t.side);
   const ub = addBubble(t.side, "user", esc(t.user));
-  await sleep(300);
+  if (state.idx > 0) await sleep(300);
   await narrate(ub, n === 1 && t.side === "L"
     ? `${who} asks MyGym's support bot a question. Before calling the model, the bot checks the cache.`
     : `${who} sends a message. Every message is checked against the cache first.`);
@@ -732,7 +732,12 @@ function choose(key) {
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.s === key)));
   document.querySelectorAll(".corner [data-s]").forEach(t => t.setAttribute("aria-pressed", String(t.dataset.s === key)));
   writeHash();
+  restart();
+}
+// every start opens on the first speech bubble, with no click needed
+function restart() {
   reset();
+  play();
 }
 function setView(stage) {
   state.stage = stage;
@@ -741,16 +746,16 @@ function setView(stage) {
 }
 function fromHash(initial) {
   const h = location.hash.slice(1);
-  const stage = h.endsWith("-stage");
-  const key = stage ? h.slice(0, -6) : h;
+  const stage = initial === true || h.endsWith("-stage");
+  const key = h.endsWith("-stage") ? h.slice(0, -6) : h;
   setView(stage);
   if (initial === true || key !== state.key) choose(key || "demo-1");
 }
 
 document.querySelectorAll(".tab, .corner [data-s]").forEach(t => t.addEventListener("click", () => choose(t.dataset.s)));
 $("play").addEventListener("click", play);
-$("reset").addEventListener("click", reset);
-$("c-reset").addEventListener("click", reset);
+$("reset").addEventListener("click", restart);
+$("c-reset").addEventListener("click", restart);
 $("view").addEventListener("click", () => setView(true));
 $("c-view").addEventListener("click", () => setView(false));
 $("mode").addEventListener("change", e => { state.mode = e.target.value; syncButtons(); });
@@ -769,7 +774,7 @@ document.addEventListener("keydown", e => {
   if (e.key === " " || e.key === "ArrowRight" || e.key === "Enter") {
     e.preventDefault();
     if (!advance() && !state.playing) play();
-  } else if (e.key === "r" || e.key === "R") reset();
+  } else if (e.key === "r" || e.key === "R") restart();
   else if (e.key === "v" || e.key === "V") setView(!state.stage);
   else if (e.key === "1" || e.key === "2") choose("demo-" + e.key);
 });

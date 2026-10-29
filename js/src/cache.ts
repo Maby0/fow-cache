@@ -60,7 +60,9 @@ export class InMemoryBackend implements Backend {
 
 /** Wraps any LangChain.js cache (BaseCache from @langchain/core), e.g. a semantic cache from a
  * vector-store integration. The answer and entry are packed as JSON in the stored generation's
- * text, so use a cache (or namespace) dedicated to the guard. One candidate per lookup. */
+ * text, so use a cache (or namespace) dedicated to the guard. One candidate per lookup, and one
+ * slot per exact prompt: chats ending in the same message share it and the latest one stored
+ * wins (safe, since the guard rejects a mismatch, but fewer hits). */
 export class LangChainBackend implements Backend {
   constructor(private cache: { lookup(prompt: string, llmKey: string): Promise<Array<{ text: string }> | null>;
     update(prompt: string, llmKey: string, value: Array<{ text: string }>): Promise<void> },

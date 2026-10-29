@@ -19,6 +19,7 @@ unguarded: the guard does the precise check. Candidates are found by the final u
 message, the way GPTCache and RedisVL work by default.
 """
 import asyncio
+import hashlib
 import json
 from dataclasses import dataclass
 
@@ -55,9 +56,14 @@ def _norm(s):
 
 class RedisVLBackend:
     """Wraps a redisvl SemanticCache (pip install fow-cache[redis]). The guard's entry is
-    stored in the cache entry's metadata."""
+    stored in the cache entry's metadata.
+
+    RedisVL names an entry by its prompt (plus filters), so two conversations ending in the
+    same message would overwrite each other. Each entry gets a context filter so they don't:
+    the guard then picks between them."""
 
     KEY = "fow_entry"
+    CONTEXT = "fow_ctx"
 
     def __init__(self, semantic_cache):
         self.cache = semantic_cache
@@ -68,7 +74,14 @@ class RedisVLBackend:
                 if (h.get("metadata") or {}).get(self.KEY)]
 
     def store(self, text, answer, entry):
-        self.cache.store(prompt=text, response=answer, metadata={self.KEY: entry})
+        self.cache.store(prompt=text, response=answer, metadata={self.KEY: entry},
+                         filters={self.CONTEXT: _context_id(entry)})
+
+
+def _context_id(entry):
+    """Stable id for the conversation an entry came from: same context, same id."""
+    blob = json.dumps({"messages": entry["messages"], "facts": entry["facts"]}, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
 def _pack(answer, entry):
@@ -88,7 +101,8 @@ class GPTCacheBackend:
     """Wraps an initialised gptcache.Cache (e.g. from gptcache.adapter.api.init_similar_cache).
     GPTCache stores only a question and an answer, so the answer and the guard's entry are
     packed together as JSON: use a cache dedicated to the guard. GPTCache returns at most
-    one candidate per lookup."""
+    one candidate per lookup, so chats ending in the same message share one slot and the
+    latest one stored wins (safe: the guard rejects a mismatch, but fewer hits than RedisVL)."""
 
     def __init__(self, cache_obj):
         self.cache = cache_obj
@@ -109,7 +123,9 @@ class LangChainBackend:
     """Wraps any LangChain cache (langchain_core.caches.BaseCache), e.g. a semantic cache from
     langchain-community or a vector-store integration. The answer and the guard's entry are
     packed as JSON in the stored generation's text, so use a cache (or `namespace`) dedicated
-    to the guard. LangChain caches return at most one entry per lookup."""
+    to the guard. LangChain caches return at most one entry per lookup and keep one per
+    exact prompt, so chats ending in the same message share a slot and the latest one
+    stored wins (safe: the guard rejects a mismatch, but fewer hits than RedisVL)."""
 
     def __init__(self, cache, namespace="fow-cache"):
         self.cache, self.namespace = cache, namespace  # passed as LangChain's llm_string

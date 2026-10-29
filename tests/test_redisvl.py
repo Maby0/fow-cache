@@ -47,3 +47,12 @@ def test_guarded_cache_on_redisvl(cache):
     gc.store(chat(g, "netflix").ask("cancel it"), "Cancelled your Netflix plan.")
     assert gc.lookup(chat(g, "netflix").ask("cancel it")).answer == "Cancelled your Netflix plan."
     assert gc.lookup(chat(g, "gym").ask("cancel it")) is None
+
+
+def test_same_final_message_from_different_chats_keeps_both(cache):
+    g = Guard(llm=FakeLLM(), jev=FakeJev())
+    gc = GuardedCache(RedisVLBackend(cache), g, k=3)
+    gc.store(chat(g, "netflix").ask("cancel it"), "Cancelled your Netflix plan.")
+    gc.store(chat(g, "gym").ask("cancel it"), "Cancelled your gym membership.")
+    assert gc.lookup(chat(g, "netflix").ask("cancel it")).answer == "Cancelled your Netflix plan."
+    assert gc.lookup(chat(g, "gym").ask("cancel it")).answer == "Cancelled your gym membership."

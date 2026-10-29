@@ -51,3 +51,11 @@
 ## [2026-10-29] build | Interactive demo on GitHub Pages
 - demo/index.html: two MyGym support chats + guard trace, click-to-advance narration, stage view (#demo-2-stage); scripted replay, illustrative Jev scores, library thresholds and cost-model prices
 - Live at maby0.github.io/fow-cache/demo/ (Pages from main, root); README links it with demo/demo.gif (screen recording, 1.5x, 2m18s, 5 MB); MP4 copy in ~/Movies/fow-cache-demo.mp4
+
+## [2026-10-29] research | Integration survey
+- integrations.md: ~20 public gateways, chat platforms and cache libraries read at source level. Pattern: caches match the last message (Higress, GPTCache, langgraph-redis, Dify annotations), the whole prompt (LiteLLM, LangChain), or stop caching past 3-4 messages (Bifrost, LiteLLM since 2026-10-07). Best targets: Dify, langgraph-redis, LiteLLM.
+- Found and fixed a RedisVLBackend bug: RedisVL ids entries by prompt, so chats ending in the same message overwrote each other. Entries now carry a per-context filter; real-Redis test added (CI). GPTCache and LangChain backends keep one slot per prompt by design; documented.
+- GPTCache gained a JevEvaluation on 2026-09-22 (questions + cached answer only, no conversation context).
+
+## [2026-10-29] release | v0.2.0
+- record()/fold()/merge_fold. PyPI published; npm job failed (E404: trusted-publisher OIDC exchange rejected), pending a settings check.

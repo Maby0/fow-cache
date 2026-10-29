@@ -9,6 +9,8 @@ every number in the README is public, dead ends included.
   anything is published.
 - [prior-art](prior-art.md): vCache, the other semantic-cache papers, and where this
   project fits.
+- [integrations](integrations.md): where fow-cache could plug in: gateways, chat
+  platforms and cache libraries surveyed at source level, with the best targets.
 - [ideas](ideas.md): ideas not yet built (partial reuse / answer adaptation).
 - [log](log.md): what happened, append only.
 

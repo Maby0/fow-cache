@@ -198,6 +198,9 @@ def fold_facts(conversation_id):
   only text, so fow-cache packs the answer and its snapshot as JSON: give the guard its own
   cache. Anything with `candidates(text, k) -> [(answer, entry_dict)]` and
   `store(text, answer, entry_dict)` works too.
+- **API keys.** The guard reads `TYPESAFE_API_KEY` (or `OPENROUTER_API_KEY`, for Jev via
+  OpenRouter) and `ANTHROPIC_API_KEY` for the Haiku calls. Benchmarking your own cache
+  with `evaluate` or `fow-cache eval --embedder` needs no keys.
 - **Other models.** `llm` accepts any `(system, user) -> text` function.
 
 ## Why Jev

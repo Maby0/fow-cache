@@ -12,7 +12,7 @@ The default design, chosen on the benchmark (see wiki/findings.md, Runs 5-9):
 The guard fails safe: if anything errors or the time budget runs out, the decision is a
 miss (serve=False) and your app generates a fresh answer as it would without a cache.
 
-    guard = Guard(llm=anthropic_llm(), jev=JevClient())
+    guard = Guard(llm=anthropic_llm(), decider=JevClient())   # or any yes/no model
     chat = guard.conversation()               # or guard.conversation(saved_state)
     chat.record(user_msg, reply)              # after each reply: no model call
     saved_state = chat.to_dict()              # persist per conversation id
@@ -168,13 +168,24 @@ class Decision:
 
 
 class Guard:
-    def __init__(self, llm=None, jev=None, batch=BATCH, whole_threshold=WHOLE_THRESHOLD,
-                 rewrite_threshold=REWRITE_THRESHOLD, timeout=TIMEOUT, max_workers=16):
-        if jev is None:
+    """decider: the yes/no model, either a function (state, instructions) -> probability of
+    yes (0 to 1), or an object with that as a noul() method, like JevClient (the default).
+    The thresholds were tuned on Jev's probabilities: a decider that answers only 1.0 or
+    0.0 works with them as they are; one with its own probabilities needs its own.
+    jev: the older name for decider."""
+
+    def __init__(self, llm=None, decider=None, batch=BATCH, whole_threshold=WHOLE_THRESHOLD,
+                 rewrite_threshold=REWRITE_THRESHOLD, timeout=TIMEOUT, max_workers=16, jev=None):
+        if decider is not None and jev is not None:
+            raise TypeError("pass decider or jev, not both")
+        decider = decider if decider is not None else jev
+        if decider is None:
             from .jev import JevClient
-            jev = JevClient(timeout=timeout, retries=1)
+            decider = JevClient(timeout=timeout, retries=1)
         self.llm = llm or anthropic_llm()
-        self.jev, self.batch, self.timeout = jev, batch, timeout
+        self.decider = self.jev = decider
+        self._decide = decider.noul if hasattr(decider, "noul") else decider
+        self.batch, self.timeout = batch, timeout
         self.whole_threshold, self.rewrite_threshold = whole_threshold, rewrite_threshold
         # Long-lived pool: a timed-out check must not block the caller while its calls finish.
         self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="fow-cache")
@@ -195,7 +206,7 @@ class Guard:
         pool tasks, so concurrent checks can't starve the pool."""
         t0 = time.monotonic()
         left = lambda: max(0.0, self.timeout - (time.monotonic() - t0))
-        whole = self._pool.submit(self.jev.noul, {"cached_conversation": transcript(cached.messages),
+        whole = self._pool.submit(self._decide, {"cached_conversation": transcript(cached.messages),
                                                   "new_conversation": transcript(new.messages)}, CONV_INSTRUCTIONS)
         ra, rb = self._pool.submit(self.rewrite, cached), self._pool.submit(self.rewrite, new)
         try:
@@ -204,7 +215,7 @@ class Guard:
                 ra.cancel(), rb.cancel()
                 return Decision(False, "whole_conversation", w, seconds=time.monotonic() - t0)
             rewrites = (ra.result(timeout=left()), rb.result(timeout=left()))
-            rw = self._pool.submit(self.jev.noul, {"cached_question": rewrites[0], "new_question": rewrites[1]},
+            rw = self._pool.submit(self._decide, {"cached_question": rewrites[0], "new_question": rewrites[1]},
                                    QUESTION_INSTRUCTIONS).result(timeout=left())
         except FutureTimeout:
             log.warning("fow-cache: check exceeded %.1fs; treating as a miss", self.timeout)

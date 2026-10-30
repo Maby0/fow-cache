@@ -55,7 +55,7 @@ Exits 1 when more than `--max-wrong` of the traps get a wrong answer.
 ```ts
 import { Guard, GuardedCache, InMemoryBackend, anthropicLlm, JevClient, mergeFold } from "fow-cache";
 
-const guard = new Guard({ llm: anthropicLlm(), jev: new JevClient() });
+const guard = new Guard({ llm: anthropicLlm(), decider: new JevClient() });
 const cache = new GuardedCache(new InMemoryBackend(), guard);   // or new LangChainBackend(yourCache)
 
 async function handle(conversationId: string, userMessage: string) {
@@ -89,6 +89,10 @@ async function foldFacts(conversationId: string) {
   from Python can be read from TypeScript and the other way round.
 - Backends: `InMemoryBackend`, `LangChainBackend`, or anything implementing
   `candidates(text, k)` and `store(text, answer, entry)`.
+- `decider` is the yes/no model: any `(state, instructions) => Promise<probability of yes>`,
+  or an object with that as `noul()`, like `JevClient` (the default). The thresholds were tuned
+  on Jev's probabilities: a decider that answers only 1 or 0 works with them as they are; one
+  with its own probabilities needs `wholeThreshold` and `rewriteThreshold` measured for it.
 - Jev needs `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`; the Anthropic SDK reads
   `ANTHROPIC_API_KEY`. `llm` accepts any `(system, user) => Promise<string>`.
 

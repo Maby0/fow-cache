@@ -147,9 +147,17 @@ export interface Decision {
   ms: number;
 }
 
+/** The yes/no model: a function (state, instructions) => probability of yes (0 to 1), or an
+ * object with that as a noul() method, like JevClient (the default). The thresholds were tuned
+ * on Jev's probabilities: a decider that answers only 1 or 0 works with them as they are; one
+ * with its own probabilities needs its own. */
+export type Decider = Jev | ((state: Record<string, unknown>, instructions: string) => Promise<number>);
+
 export interface GuardOptions {
   llm?: Llm;
-  jev?: Jev;
+  decider?: Decider;
+  /** @deprecated The older name for decider. */
+  jev?: Decider;
   batch?: number;
   wholeThreshold?: number;
   rewriteThreshold?: number;
@@ -169,22 +177,32 @@ function deadline<T>(p: Promise<T>, msLeft: number): Promise<T> {
 
 export class Guard {
   readonly llm: Llm;
-  readonly jev: Jev;
+  readonly decider: Decider;
   readonly batch: number;
   readonly wholeThreshold: number;
   readonly rewriteThreshold: number;
   readonly timeoutMs: number;
   private onWarning: (message: string, error?: unknown) => void;
 
-  constructor({ llm, jev, batch = BATCH, wholeThreshold = WHOLE_THRESHOLD, rewriteThreshold = REWRITE_THRESHOLD,
+  private decide: (state: Record<string, unknown>, instructions: string) => Promise<number>;
+
+  constructor({ llm, decider, jev, batch = BATCH, wholeThreshold = WHOLE_THRESHOLD, rewriteThreshold = REWRITE_THRESHOLD,
     timeoutMs = TIMEOUT_MS, onWarning }: GuardOptions = {}) {
     this.llm = llm ?? anthropicLlm();
-    this.jev = jev ?? new JevClient({ timeoutMs, retries: 1 });
+    if (decider && jev) throw new TypeError("pass decider or jev, not both");
+    const d = decider ?? jev ?? new JevClient({ timeoutMs, retries: 1 });
+    this.decider = d;
+    this.decide = typeof d === "function" ? d : (state, instructions) => d.noul(state, instructions);
     this.batch = batch;
     this.wholeThreshold = wholeThreshold;
     this.rewriteThreshold = rewriteThreshold;
     this.timeoutMs = timeoutMs;
     this.onWarning = onWarning ?? ((m, e) => console.warn(`fow-cache: ${m}`, e ?? ""));
+  }
+
+  /** @deprecated The older name for decider. */
+  get jev(): Decider {
+    return this.decider;
   }
 
   log(message: string, error?: unknown) {
@@ -208,7 +226,7 @@ export class Guard {
   async check(cached: Entry, next: Entry): Promise<Decision> {
     const t0 = Date.now();
     const left = () => this.timeoutMs - (Date.now() - t0);
-    const whole = this.jev.noul({ cached_conversation: transcript(cached.messages),
+    const whole = this.decide({ cached_conversation: transcript(cached.messages),
       new_conversation: transcript(next.messages) }, CONV_INSTRUCTIONS);
     const rewrites = Promise.all([this.rewrite(cached), this.rewrite(next)]);
     whole.catch(() => {}); rewrites.catch(() => {}); // settled later or abandoned: never unhandled
@@ -216,7 +234,7 @@ export class Guard {
       const w = await deadline(whole, left());
       if (w < this.wholeThreshold) return { serve: false, reason: "whole_conversation", wholeScore: w, ms: Date.now() - t0 };
       const rw2 = await deadline(rewrites, left());
-      const rw = await deadline(this.jev.noul({ cached_question: rw2[0], new_question: rw2[1] }, QUESTION_INSTRUCTIONS), left());
+      const rw = await deadline(this.decide({ cached_question: rw2[0], new_question: rw2[1] }, QUESTION_INSTRUCTIONS), left());
       const serve = rw >= this.rewriteThreshold;
       return { serve, reason: serve ? "pass" : "rewrite", wholeScore: w, rewriteScore: rw, rewrites: rw2, ms: Date.now() - t0 };
     } catch (e) {

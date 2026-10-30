@@ -152,7 +152,7 @@ from fow_cache import Guard, GuardedCache, anthropic_llm, merge_fold
 from fow_cache.cache import RedisVLBackend
 from fow_cache.jev import JevClient
 
-guard = Guard(llm=anthropic_llm(), jev=JevClient())    # pip install "fow-cache[anthropic,redis]"
+guard = Guard(llm=anthropic_llm(), decider=JevClient())    # pip install "fow-cache[anthropic,redis]"
 cache = GuardedCache(RedisVLBackend(SemanticCache(name="chat", distance_threshold=0.3)), guard)
 
 def handle(conversation_id, user_message):
@@ -202,6 +202,28 @@ def fold_facts(conversation_id):
   OpenRouter) and `ANTHROPIC_API_KEY` for the Haiku calls. Benchmarking your own cache
   with `evaluate` or `fow-cache eval --embedder` needs no keys.
 - **Other models.** `llm` accepts any `(system, user) -> text` function.
+- **Your own decision model.** `decider` is any function `(state, instructions) ->
+  probability of yes`, so Jev can be swapped for another yes/no model:
+
+  ```python
+  import json, anthropic
+  client = anthropic.Anthropic()
+
+  def claude_decider(state, instructions):
+      reply = client.messages.create(model="claude-haiku-4-5", max_tokens=3,
+                                     system=instructions + " Answer yes or no.",
+                                     messages=[{"role": "user", "content": json.dumps(state)}])
+      return 1.0 if reply.content[0].text.strip().lower().startswith("yes") else 0.0
+
+  guard = Guard(llm=anthropic_llm(), decider=claude_decider)
+  ```
+
+  The default thresholds were tuned on Jev's probabilities. A decider that answers only
+  1.0 or 0.0, like this one, works with them as they are; one with its own probabilities
+  needs `whole_threshold` and `rewrite_threshold` measured for it (`bench/conv_heldout.py`
+  shows how the defaults were picked). A slower decider may need a longer `timeout`
+  (default 3 s): this one took about 1.4 s per check, against Jev's 1.2 s. The benchmark
+  numbers above are Jev's.
 
 ## Why Jev
 

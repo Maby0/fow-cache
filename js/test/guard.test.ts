@@ -108,3 +108,19 @@ test("reads entries packed by the Python package", () => {
 });
 
 const PY_PACKED = "{\"fow_cache\": 1, \"answer\": \"Cancelled your Netflix plan.\", \"entry\": {\"messages\": [{\"role\": \"user\", \"content\": \"cancel it\"}], \"facts\": {\"goal\": \"cancel netflix\"}, \"folded\": 0, \"rewrite\": null}}";
+
+test("decider can be a plain function; jev is its older name", async () => {
+  const jev = new FakeJev();
+  const keys: string[][] = [];
+  const decider = async (state: Record<string, unknown>, _instructions: string) => {
+    keys.push(Object.keys(state).sort());
+    return jev.noul(state);
+  };
+  const g = new Guard({ llm: new FakeLlm().llm, decider, ...quiet });
+  assert.equal((await g.check((await chat(g, "netflix")).ask("cancel it"), (await chat(g, "netflix")).ask("cancel it"))).serve, true);
+  assert.equal((await g.check((await chat(g, "netflix")).ask("cancel it"), (await chat(g, "gym")).ask("cancel it"))).serve, false);
+  assert.ok(keys.some((k) => k.join() === "cached_question,new_question"));
+  const old = new Guard({ llm: new FakeLlm().llm, jev, ...quiet });
+  assert.equal(old.decider, jev); assert.equal(old.jev, jev);
+  assert.throws(() => new Guard({ llm: new FakeLlm().llm, decider: jev, jev, ...quiet }), TypeError);
+});

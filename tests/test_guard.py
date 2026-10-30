@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from fow_cache import Guard, merge_fold
 from fow_cache.prompts import FACTS_BATCH_PROMPT
 
@@ -86,3 +88,25 @@ def test_same_context_is_served_and_rewrite_is_reused():
     g.check(cached, chat(g, "netflix").ask("cancel it"))
     # cached side's rewrite is memoised on the entry; only the new side is rewritten
     assert len(llm.calls) - calls == 1 + 1  # one facts fold for the new chat, one rewrite
+
+
+def test_decider_can_be_a_plain_function():
+    jev = FakeJev()
+    calls = []
+
+    def decider(state, instructions):
+        calls.append(sorted(state))
+        return jev.noul(state, instructions)
+
+    g = Guard(llm=FakeLLM(), decider=decider)
+    assert g.check(chat(g, "netflix").ask("cancel it"), chat(g, "netflix").ask("cancel it")).serve
+    assert not g.check(chat(g, "netflix").ask("cancel it"), chat(g, "gym").ask("cancel it")).serve
+    assert ["cached_conversation", "new_conversation"] in calls and ["cached_question", "new_question"] in calls
+
+
+def test_jev_is_the_older_name_for_decider():
+    j = FakeJev()
+    g = Guard(llm=FakeLLM(), jev=j)
+    assert g.decider is j and g.jev is j
+    with pytest.raises(TypeError):
+        Guard(llm=FakeLLM(), decider=j, jev=j)
